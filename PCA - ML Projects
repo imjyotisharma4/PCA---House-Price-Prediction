@@ -1,0 +1,145 @@
+import pandas as pd
+
+# To view all rows and columns while displaying a df
+pd.set_option('display.max_rows', 500)
+pd.set_option('display.max_columns', 500)
+pd.set_option('display.width', 1000)
+
+# Read in the FullRaw
+FullRaw = pd.read_csv("C:\\Users\\hp\\Datasets\\PropertyPrice_Data.csv")
+FullRaw.head()
+FullRaw.shape
+
+# Lets drop "Id" column from the data as it is not going to assist us in our model
+FullRaw.drop(['Id'], axis = 1, inplace = True) 
+
+#check for NAs
+
+FullRaw.isnull().sum()
+
+#sampling
+from sklearn.model_selection import train_test_split
+Train, Test = train_test_split(FullRaw, train_size = 0.8, random_state = 123)
+
+# Create Source Column in both Train and Test
+Train['Source'] = "Train"
+Test['Source'] = "Test"
+
+# Combine Train and Test
+FullRaw = pd.concat([Train, Test], axis = 0)
+FullRaw.head() # Validation
+
+# print(Train.shape)
+# Train.head()
+
+# print(Test.shape)
+# Test.head()
+
+# print(FullRaw.shape)
+# FullRaw.tail()
+
+
+#Missing value imputation
+tempMode = FullRaw.loc[FullRaw['Source'] == "Train", "Garage"].mode()[0]
+FullRaw["Garage"] = FullRaw["Garage"].fillna(tempMode)
+FullRaw.isnull().sum() # Validation
+
+# Garage_Built_Year
+tempMedian = FullRaw.loc[FullRaw['Source'] == "Train", "Garage_Built_Year"].median()
+FullRaw["Garage_Built_Year"] = FullRaw["Garage_Built_Year"].fillna(tempMedian)   
+FullRaw.isnull().sum() # Validation
+
+
+#dummy variable creation
+FullRaw = pd.get_dummies(FullRaw) # 'Source'  column will produce 'Source_Train' & 'Source_Test'
+FullRaw.head() # Validation
+
+#Divide into train and test
+Train = FullRaw[FullRaw['Source_Train'] == 1].drop(['Source_Train', 'Source_Test'], axis = 1).copy()
+Test = FullRaw[FullRaw['Source_Train'] == 0].drop(['Source_Train', 'Source_Test'], axis = 1).copy()
+print(Train.shape)
+print(Test.shape)
+
+
+#Standardize Train & Test data using Train metrics
+from sklearn.preprocessing import StandardScaler
+Train_Scaling = StandardScaler().fit(Train) # Train_Scaling contains means, std_dev of training dataset
+Train_Standardized = Train_Scaling.transform(Train) # This step standardizes the train data
+Test_Standardized  = Train_Scaling.transform(Test) # This step standardizes the test data
+
+# Add the column names to Train_X_Std, Test_X_Std
+Train_Standardized = pd.DataFrame(Train_Standardized, columns = Train.columns)
+Test_Standardized = pd.DataFrame(Test_Standardized, columns = Test.columns)
+Train_Standardized.head()
+
+# Test_Standardized.head()
+Train_Standardized.shape
+
+
+#Build Model
+
+from sklearn.decomposition import PCA
+PCA_Model = PCA(n_components=0.70).fit(Train_Standardized) # n_components=0.70: 
+#90% variance to be captured through PCA
+# If n_components < 1, will act as % variance to be captured using PCA
+# If n_components >= 1, will act as number of PCs to be created using PCA
+
+PCA_Model
+#In a Jupyter environment, please rerun this cell to show the HTML representation or trust the notebook.
+#On GitHub, the HTML representation is unable to render, please try loading this page with nbviewer.org.
+
+# Coefficient understanding
+len(PCA_Model.components_) # Total PCs found to explain 70% of data
+
+PCA_Model.components_ # Coefficients of linear equation (Eigenvectors)
+
+PCs_Df = pd.DataFrame(PCA_Model.components_)
+PCs_Df
+
+PCs_Df = pd.DataFrame(PCA_Model.components_).T
+PCs_Df
+
+#Check which original variable has a high impact on PC1
+#The larger the absolute value/ magnitude of the coefficient, the more variation the corresponding variable has in the original dataset.
+
+# Easier to sort the magnitudes of EIGENVECTORS (COEFFICIENTS) associated with each ORIGINAL VARIABLE
+PCs_Df.index = Train.columns
+PCs_Df
+
+PCs_Df[0].abs().sort_values(ascending = False)
+
+# Sort based on first PC absolute values
+PCs_Df.reindex(PCs_Df[0].abs().sort_values(ascending = False).index) 
+# Shape is [# of Original Columns x # of PCs Kept]
+
+# Varition explained (Eigenvalues)
+print(PCA_Model.explained_variance_ratio_) # % Variation explained by individual PCs (Eigenvalues)
+# print(len(PCA_Model.explained_variance_ratio_)) # How many PCs are needed to capture 60% variation
+print(sum(PCA_Model.explained_variance_ratio_)) # Should be roughly 60% (Total variation)
+
+
+#Transformed/Recasted Variables (Principal Components) on Standardized Data
+
+# Original Data
+print(Train_Standardized.shape)
+print(Test_Standardized.shape)
+
+import pandas as pd 
+Train_Transformed = pd.DataFrame(PCA_Model.transform(Train_Standardized))
+Test_Transformed = pd.DataFrame(PCA_Model.transform(Test_Standardized))
+
+# Transformed Data
+print(Train_Transformed.shape)
+print(Test_Transformed.shape)
+
+Train_Transformed.head()
+
+# Lets validate whether the correlation between each "new" variable is zero or not 
+Train_Transformed.corr()
+# All the numbers are really really small (almost 0) in correlation output
+
+
+
+
+
+
